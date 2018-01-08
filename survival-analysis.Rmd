@@ -1,0 +1,48 @@
+---
+title: "survival-analysis"
+author: "Fan"
+date: "January 8, 2018"
+output: html_document
+---
+
+library(dplyr); library(Hmisc); library(MIMICbook)
+
+##setwd("~/Desktop/sepsis-bb")
+dat <- read.csv("sb_data.csv")
+
+#for bb
+dat_bb <- dat_s %>% filter(take_bb == 1)
+dat_no_bb <- dat_s %>% filter(take_bb == 0)
+KM1 <- survfit(Surv(days_to_event, thirtyday_expire_flag) ~ 1,  type="kaplan-meier", conf.type="log", data=dat_bb)
+KM2 <- survfit(Surv(days_to_event, thirtyday_expire_flag) ~ 1,  type="kaplan-meier", conf.type="log", data=dat_no_bb)
+plot(KM1,
+     xlab="t", ylab="Survival", lwd=2, col = "blue", xlim=c(0, 30), ylim=c(0.7, 1), main = "bb sep")
+lines(KM2, 
+     xlab="t", ylab="Survival", lwd=2, col = "red", xlim=c(0, 30), ylim=c(0.7, 1))
+legend("bottomleft", c("bb sep", "no bb sep"),
+       fill = c("blue", "red"))
+
+#for ace
+dat_ace <- dat_s %>% filter(take_ace == 1)
+dat_no_ace <- dat_s %>% filter(take_ace == 0)
+KM3 <- survfit(Surv(days_to_event, thirtyday_expire_flag) ~ 1,  type="kaplan-meier", conf.type="log", data=dat_ace)
+KM4 <- survfit(Surv(days_to_event, thirtyday_expire_flag) ~ 1,  type="kaplan-meier", conf.type="log", data=dat_no_ace)
+plot(KM3,
+     xlab="t", ylab="Survival", lwd=2, col = "blue", xlim=c(0,30), ylim=c(0.70, 1), main = "ace sep")
+lines(KM4, 
+     xlab="t", ylab="Survival", lwd=2, col = "red", xlim=c(0,30), ylim=c(0.70, 1))
+legend("bottomleft", c("ace sep", "no ace sep"),
+       fill = c("blue", "red"))
+       
+#for arb
+dat_arb <- dat_s %>% filter(take_arb == 1)
+dat_no_arb <- dat_s %>% filter(take_arb == 0)
+KM5 <- survfit(Surv(days_to_event, thirtyday_expire_flag) ~ 1,  type="kaplan-meier", conf.type="log", data=dat_arb)
+KM6 <- survfit(Surv(days_to_event, thirtyday_expire_flag) ~ 1,  type="kaplan-meier", conf.type="log", data=dat_no_arb)
+plot(KM5,
+     xlab="t", ylab="Survival", lwd=2, col = "blue", xlim=c(0,30), ylim=c(0.70, 1), main = "arb sep")
+lines(KM6, 
+     xlab="t", ylab="Survival", lwd=2, col = "red", xlim=c(0,30), ylim=c(0.70, 1))
+legend("bottomleft", cex = 1, pt.cex = 1, c("arb sep", "no arb sep"),
+       fill = c("blue", "red"))
+
