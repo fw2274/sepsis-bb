@@ -1,0 +1,205 @@
+---
+title: "EDA"
+author: "Fan"
+date: "January 8, 2018"
+output: html_document
+---
+
+library(dplyr); library(Hmisc); library(MIMICbook)
+
+##setwd("~/Desktop/sepsis-bb")
+dat <- read.csv("sb_data_drug_comorb_hr.csv")
+
+#clean up the data
+#get the septic population
+dat_s  <- dat %>% filter(sepsis_angus==1)
+nrow(dat_s)
+
+#drop the unnecessary columns
+drops <- c("antibiotic_name", "antibiotic_time", "antibiotic_endtime", "height", "weight", "bmi", "resprate_min", "resprate_max", "resprate_mean", "tempc_min", "tempc_max", "tempc_mean", "spo2_max","spo2_min", "spo2_mean", "glucose_min", "glucose_max", "glucose_mean", "intime", "outtime", "hadm_id_y")
+dat_s <- dat_s[ , !(names(dat_s) %in% drops)]
+
+
+#generate the population that intake bb, ace, diuretics, arb and ccb
+#filter sep&bb
+dat_s <- dat_s %>% mutate(take_bb=ifelse(acebutolol==1|atenolol==1|betaxolol==1|celiprolol==1|
+                                           bisoprolol==1|esmolol==1|metoprolol==1|nebivolol==1|
+                                           nadolol==1|oxprenolol==1|propranolol==1|pindolol==1|
+                                           sotalol==1|carvedilol==1|labetalol==1|levobunolol==1|
+                                           timolol==1|alprenolol==1|carteolol==1, 1, 0))
+
+#filter sep&ace
+dat_s <- dat_s %>% mutate(take_ace=ifelse(benazepril==1|captopril==1|enalapril==1|fosinopril==1|lisinopril==1|moexipril==1|
+                                            perindopril==1|quinapril==1|ramipril==1|trandolapril==1, 1, 0))
+
+#filter sep&diuretics 
+dat_s <- dat_s %>% mutate(take_diuretics=ifelse(chlorthalidone==1|chlorothiazide==1|hydrochlorothiazide==1|indapamide==1|metolazone==1|amiloride==1|bumetanide==1|furosemide==1|spironolactone==1|triamterene==1, 1, 0))
+
+
+#filter sep&arb
+dat_s <- dat_s %>% mutate(take_arb=ifelse(losartan==1|telmisartan==1|irbesartan==1|candesartan==1|telmisartan==1|olmesartan==1|valsartan==1|atorvastine==1|rosuvastatine==1|azilsartan==1|eprosartan==1, 1, 0))
+
+#filter sep&ccb 
+dat_s <- dat_s %>% mutate(take_ccb=ifelse(verapamil==1|nifedipine==1|amlodipine==1|nitrendipine==1|isradipine==1|lacidipine==1, 1, 0))
+
+
+#create age and sofa interval
+dat_s$age.cat <- cut2(dat_s$age,c(25,40,55,70,85))
+dat_s$sofa.cat <- cut2(dat_s$sofa, c(4,8,12))
+
+
+#take a look at age and sofa
+summary(dat_s$age)
+summary(dat_s$age.cat)
+
+summary(dat_s$sofa)
+summary(dat_s$sofa.cat)
+
+# omit missing value
+colSums(is.na(dat_s))
+
+nrow(dat_s)
+dat_s <- na.omit(dat_s)
+nrow(dat_s)
+
+
+#change variables to factors 
+dat_s <- dat_s %>% mutate(age.cat=as.factor(age.cat), #age
+                          is_male=as.factor(is_male), #gender 
+                          vent=as.factor(vent), #vent 
+                          sofa.cat = as.factor(sofa.cat), #sofa
+                          race_white = as.factor(race_white), race_black = as.factor(race_black), #race
+                          race_hispanic = as.factor(race_hispanic), race_other = as.factor(race_other),
+                          congestive_heart_failure = as.factor(congestive_heart_failure), #ICD 9 comorb
+                          hypertension=as.factor(hypertension),  
+                          diabetes_sb = as.factor(diabetes_sb),
+                          renal_failure = as.factor(renal_failure),
+                          chf2 = as.factor(chf2), #pmh comorb
+                          hyp=as.factor(hyp),  
+                          diabetes_y = as.factor(diabetes_y),
+                          renal = as.factor(renal),
+                          hospital_expire_flag = as.factor(hospital_expire_flag), #mortality
+                          thirtyday_expire_flag = as.factor(thirtyday_expire_flag), 
+                          take_bb = as.factor(take_bb), take_ace = as.factor(take_ace), #drugs
+                          take_diuretics = as.factor(take_diuretics), take_arb = as.factor(take_arb), 
+                          take_ccb = as.factor(take_ccb),
+                          take_bb_d = as.factor(take_bb_d), take_bb_ccb = as.factor(take_bb_ccb),
+                          vasopressor = as.factor(vasopressor))
+
+
+
+#save the cleaned data in a csv file
+write.csv("sb_data.csv")
+
+
+#a brief summary 
+summary(dat_s)
+
+#for comorb
+dat_s %>% group_by(take_bb, take_ace, take_arb, take_diuretics, take_ccb) %>% summarise(n = n(),  mean(hospital_expire_flag==1), mean(hypertension==1), mean(diabetes_sb==1), mean(congestive_heart_failure==1), mean(renal_failure==1))
+#for drugs
+dat_s %>% group_by(hypertension, congestive_heart_failure, diabetes_sb, renal_failure) %>% summarise(n = n(),  mean(hospital_expire_flag==1), mean(take_ace==1), mean(take_arb==1), mean(take_bb==1), mean(take_ccb==1), mean(take_diuretics==1))
+#table one for taking ace
+CreateTableOne(vars=c("is_male", "age.cat", 
+                           "take_bb", "take_diuretics", "take_arb", "take_ccb",
+                           "congestive_heart_failure", "hypertension",
+                           "diabetes_sb", "renal_failure", 
+                           "hospital_expire_flag", "thirtyday_expire_flag", 
+                           "vent","sofa.cat","bmi"),strata="take_ace",data=dat_s)%>% print(
+  printToggle      = FALSE,
+  showAllLevels    = TRUE,
+  cramVars         = "kon"
+) %>% 
+{data.frame(
+  variable_name             = gsub(" ", "&nbsp;", rownames(.), fixed = TRUE), ., 
+  row.names        = NULL, 
+  check.names      = FALSE, 
+  stringsAsFactors = FALSE)} %>% 
+knitr::kable()
+
+
+### excluding outliers visualization with histogram and proportional plot
+
+hist(dat_s$age, main="age",xlab="age",col="grey", breaks = 100, xlim = range(-10, 100)) 
+hist(dat_s$hosp_los, main="hosp_los",xlab="hosp_los",col="grey", breaks = 100, xlim = range(-10, 300), ylim = range(-10, 3000)) 
+#clean up the dataset
+dat_s <- dat_s %>% filter(hosp_los > 0)
+hist(dat_s$icu_los, main="icu_los",xlab="icu_los",col="grey", breaks = 100, xlim = range(0, 200)) 
+
+
+length(dat_s$heartrate_mean)
+heartrate_mean <- na.omit(dat_s$heartrate_mean)
+length(heartrate_mean)
+hist(heartrate_mean, main="heart rate",xlab="heartrate_mean",col="grey", breaks = 100) 
+c(summary(heartrate_mean), quantile(heartrate_mean, 0.01), quantile(heartrate_mean, 0.99))
+
+
+length(dat_s$sysbp_mean)
+sysbp_mean <- na.omit(dat_s$sysbp_mean)
+length(sysbp_mean)
+hist(sysbp_mean, main="systolic blood pressure",xlab="sysbp_mean",col="grey", breaks = 100) 
+c(summary(sysbp_mean), quantile(sysbp_mean, 0.01), quantile(sysbp_mean, 0.99))
+
+
+length(dat_s$diasbp_mean)
+diasbp_mean <- na.omit(dat_s$diasbp_mean)
+length(diasbp_mean)
+hist(diasbp_mean, main="diastolic blood pressure",xlab="diasbp_mean",col="grey", breaks = 100) 
+c(summary(diasbp_mean), quantile(diasbp_mean, 0.01), quantile(diasbp_mean, 0.99))
+
+
+length(dat_s$meanbp_mean)
+meanbp_mean <- na.omit(dat_s$meanbp_mean)
+length(meanbp_mean)
+hist(meanbp_mean, main="mean blood pressure",xlab="meanbp_mean",col="grey", breaks = 100) 
+c(summary(meanbp_mean), quantile(meanbp_mean, 0.01), quantile(meanbp_mean, 0.99))
+
+
+hist(dat_s$days_to_event, main="days to event",xlab="days to event",col="grey", breaks = 100) 
+
+
+plot_prop_by_level(dat_s,"sofa.cat","thirtyday_expire_flag",factor.var2="age.cat")
+
+
+
+attach(mtcars)
+par(mfrow=c(5, 1))
+
+plot_prop_by_level(dat_s, "take_bb", "thirtyday_expire_flag")
+plot_prop_by_level(dat_s, "take_ace", "thirtyday_expire_flag")
+plot_prop_by_level(dat_s, "take_arb", "thirtyday_expire_flag")
+plot_prop_by_level(dat_s, "take_ccb", "thirtyday_expire_flag")
+plot_prop_by_level(dat_s, "take_diuretics", "thirtyday_expire_flag")
+
+
+plot_prop_by_level(dat_s, "take_bb", "thirtyday_expire_flag", factor.var2 = "vent")
+plot_prop_by_level(dat_s, "take_ace", "thirtyday_expire_flag", factor.var2 = "vent")
+plot_prop_by_level(dat_s, "take_arb", "thirtyday_expire_flag", factor.var2 = "vent")
+plot_prop_by_level(dat_s, "take_ccb", "thirtyday_expire_flag", factor.var2 = "vent")
+plot_prop_by_level(dat_s, "take_diuretics", "thirtyday_expire_flag", factor.var2 = "vent")
+
+
+plot_prop_by_level(dat_s, "take_ace", "thirtyday_expire_flag", factor.var2 = "hypertension")
+plot_prop_by_level(dat_s, "take_ace", "thirtyday_expire_flag", factor.var2 = "diabetes_sb")
+plot_prop_by_level(dat_s, "take_ace", "thirtyday_expire_flag", factor.var2 = "congestive_heart_failure")
+plot_prop_by_level(dat_s, "take_ace", "thirtyday_expire_flag", factor.var2 = "renal_failure")
+
+
+plot_prop_by_level(dat_s, "take_arb", "thirtyday_expire_flag", factor.var2 = "hypertension")
+plot_prop_by_level(dat_s, "take_arb", "thirtyday_expire_flag", factor.var2 = "diabetes_sb")
+plot_prop_by_level(dat_s, "take_arb", "thirtyday_expire_flag", factor.var2 = "congestive_heart_failure")
+plot_prop_by_level(dat_s, "take_arb", "thirtyday_expire_flag", factor.var2 = "renal_failure")
+
+
+plot_prop_by_level(dat_s, "take_bb", "thirtyday_expire_flag", factor.var2 = "hypertension")
+plot_prop_by_level(dat_s, "take_bb", "thirtyday_expire_flag", factor.var2 = "diabetes_sb")
+plot_prop_by_level(dat_s, "take_bb", "thirtyday_expire_flag", factor.var2 = "congestive_heart_failure")
+plot_prop_by_level(dat_s, "take_bb", "thirtyday_expire_flag", factor.var2 = "renal_failure")
+
+
+plot_prop_by_level(dat_s, "take_bb", "thirtyday_expire_flag", factor.var2 = "vasopressor")
+plot_prop_by_level(dat_s, "take_ace", "thirtyday_expire_flag", factor.var2 = "vasopressor")
+plot_prop_by_level(dat_s, "take_arb", "thirtyday_expire_flag", factor.var2 = "vasopressor")
+plot_prop_by_level(dat_s, "take_ccb", "thirtyday_expire_flag", factor.var2 = "vasopressor")
+plot_prop_by_level(dat_s, "take_diuretics", "thirtyday_expire_flag", factor.var2 = "vasopressor")
+
