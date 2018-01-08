@@ -1,0 +1,140 @@
+---
+title: "propensity-score-match"
+author: "Fan"
+date: "January 8, 2018"
+output: html_document
+---
+
+### The propensity matching code used the psa-workshop from Fall 2017 MIT-HST.953 Collaborative Data Science in Medicine as a reference. Please see their course website on edx for more info.
+
+##setwd("~/Desktop/sepsis-bb")
+
+library(dplyr); library(twang); library(MIMICbook);library(Hmisc); library(tableone); library(dplyr); library(MIMICbook); library(sjPlot); library(MatchIt); library("pROC"); library("tableone"); library(cobalt)
+
+#get the septic population
+dat <- read.cvs("sb_data.csv")
+dat_s  <- dat %>% filter(sepsis_angus==1)
+
+set.seed(6014)
+
+
+
+### preliminary roc and distribution for ace
+
+# fit GLM for ace
+glm_fitted = glm(take_ace ~ take_bb + take_diuretics + take_arb + take_ccb + hypertension + diabetes_sb + congestive_heart_failure + renal_failure + is_male + age.cat + heartrate_mean + meanbp_mean, data=dat_s, family="binomial", na.action = na.exclude)
+
+
+X <- fitted(glm_fitted, type="response")
+Tr <- dat_s$take_ace
+
+roccurve <- roc(Tr ~ X)
+plot(roccurve, col=rainbow(7), main="ROC curve", xlab="Specificity", ylab="Sensitivity")
+auc(roccurve)
+
+
+# plot stacked histogram of the predictions
+xrange = seq(0,1,0.01)
+# 3) subset your vectors to be inside xrange
+g1 = subset(X,Tr==0)
+g2 = subset(X,Tr==1)
+# 4) Now, use hist to compute the counts per interval
+h1 = hist(g1,breaks=xrange,plot=F)$counts
+h2 = hist(g2,breaks=xrange,plot=F)$counts
+
+barplot(rbind(h1,h2),col=3:2,names.arg=xrange[-1],
+        legend.text=c("no ace","ace"),space=0,las=1,main="Stacked histogram of ACE")
+
+
+### ps for ace
+
+scores.1 <- ps(take_ace ~ take_bb + take_diuretics + take_arb + take_ccb + hypertension + diabetes_sb + congestive_heart_failure + renal_failure + is_male + age.cat + heartrate_mean + meanbp_mean,data=dat_s,verbose=FALSE)
+
+# produce the balance table
+bal.table(scores.1)$es.mean.ATE
+
+#examine the plots
+plot(scores.1,plots=1)
+plot(scores.1,plots=2)
+plot(scores.1,plots=3)
+plot(scores.1,plots=4)
+plot(scores.1,plots=5)
+plot(scores.1,plots=6)
+
+
+##Stratified Analysis with Propensity Scores
+
+dat_s$ps <- scores.1$ps[,2]
+dat_s$ps.groups <-cut2(dat_s$ps,g=10)
+table(dat_s$ps.groups)
+
+
+# a detailed tableone view for propensity score at each range 
+CreateTableOne(dat_s,vars=c("is_male", "age.cat", 
+                           "take_bb", "take_diuretics", "take_arb", "take_ccb",
+                           "congestive_heart_failure", "hypertension",
+                           "diabetes_sb", "renal_failure", 
+                           "hospital_expire_flag", "thirtyday_expire_flag", 
+                           "vent","sofa.cat"),strata=c("take_ace","ps.groups"),test=FALSE) %>% print(
+  printToggle      = FALSE,
+  showAllLevels    = TRUE,
+  cramVars         = "kon"
+) %>% 
+{data.frame(
+  variable_name             = gsub(" ", "&nbsp;", rownames(.), fixed = TRUE), ., 
+  row.names        = NULL, 
+  check.names      = FALSE, 
+  stringsAsFactors = FALSE)} %>% 
+knitr::kable()
+
+# visualization (proportional and odds ratio level) with the take_ace group
+dat_s$take_ace2 <- as.factor(dat_s$take_ace)
+plot_prop_by_level(dat_s,"ps.groups","thirtyday_expire_flag",factor.var2="take_ace2")
+
+summary(strat1.glm <- glm(thirtyday_expire_flag ~ take_ace2 + ps.groups,data=dat_s,family="binomial"))
+sjp.glm(strat1.glm,show.p = TRUE)
+
+
+
+###Propensity Score Matching
+
+dat2 <- dat_s
+match.ps1 <- matchit(take_ace2 ~ ps,data=dat2[,c("take_ace2","ps")],method="nearest", caliper = .10)
+# QQ plot
+plot(match.ps1)
+
+
+###pick a match
+
+# see the first 5 matches
+head(match.ps1$match.matrix)
+
+# pick one of the match and see how its confounding factors look
+dat2[row.names(dat2) %in% c(4267,match.ps1$match.matrix[rownames(match.ps1$match.matrix)==4267,]),c("is_male", "age.cat", 
+                           "take_bb", "take_diuretics", "take_arb", "take_ccb", "take_ace",
+                           "congestive_heart_failure", "hypertension",
+                           "diabetes_sb", "renal_failure", 
+                           "hospital_expire_flag", "thirtyday_expire_flag", 
+                           "vent","sofa.cat","ps", "heartrate_mean")]
+
+
+# produce a covariate balance plot
+love.plot(bal.tab(scores.1), stat = "mean.diffs", threshold = .1, 
+          var.order = "unadjusted", abs = TRUE,
+          line = TRUE, limits = c(0, 1.5))
+
+
+# get a summary of all matches 
+outcome <- data.frame(take_ace_pt=dat2[row.names(match.ps1$match.matrix),"thirtyday_expire_flag"], match_pt=dat2[match.ps1$match.matrix,"thirtyday_expire_flag"])
+tab.match1 <- table(outcome$take_ace_pt,outcome$match_pt,dnn=c("take_ace","Matched Control"))
+
+tab.match1[1,2]/tab.match1[2,1]
+
+
+# confidence interval and chi-sq test
+paste("95% Confint", round(exp(c(log(tab.match1[2,1]/tab.match1[1,2]) - qnorm(0.975)*sqrt(1/tab.match1[1,2] +1/tab.match1[2,1]),log(tab.match1[2,1]/tab.match1[1,2]) + qnorm(0.975)*sqrt(1/tab.match1[1,2] +1/tab.match1[2,1])) ),2))
+
+mcnemar.test(tab.match1) # for 1-1 pairs
+
+
+
