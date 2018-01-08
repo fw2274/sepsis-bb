@@ -1,0 +1,178 @@
+---
+title: "regression"
+author: "Fan"
+date: "January 8, 2018"
+output: html_document
+---
+
+library(sjPlot); library(MASS)
+##setwd("~/Desktop/sepsis-bb")
+dat_s <- read.csv("sb_data.csv")
+
+
+#multivariable regressions
+
+#an overview with full model 
+#drugs: confirm with univariate regression impression: bb, diu, ccb not sig; ace sig and arb somewhat sig
+#comorb: hyp sig; however why isn't diabetes sig when bmi is sig?
+#sofa all sig
+#only older age is sig (>55)
+#vent sig
+
+full.model.glm <- glm(thirtyday_expire_flag ~ take_bb + take_ace + take_diuretics + take_arb + take_ccb + hypertension + diabetes_sb + congestive_heart_failure + renal_failure + is_male + age.cat + sofa.cat + bmi + vent, data=dat_s, family="binomial")
+summary(full.model.glm)
+
+sjp.glm(full.model.glm)
+
+
+#AIC
+summary(stepAIC(full.model.glm, scope = list(lower=~take_ace)))
+
+#BIC
+summary(stepAIC(full.model.glm, scope = list(lower=~take_ace), k = log(nrow(dat_s))))
+
+
+#replace ICD9 comorb with pmh comorb, feel like result is not trust-worthy..
+summary(glm(thirtyday_expire_flag ~ take_bb + take_ace + take_diuretics + take_arb + take_ccb + hyp + diabetes_y + chf2 + renal + is_male + age.cat + sofa.cat + bmi + vent, data=dat_s, family="binomial"))
+
+
+#forward selection model 
+## take bb
+### Again as shown, take_bb is not sig. 
+### Note that bmi is sig but diabetes is not. Add in diabetes by judgement. Hyp is the only comorb that is sig. 
+### Also note the missing values.. hmmm
+
+bb.base.glm <- glm(thirtyday_expire_flag ~ take_bb,data=dat_s,family="binomial")
+add1(bb.base.glm,scope = ~ . + take_ace + take_diuretics + take_arb + take_ccb + hypertension + diabetes_sb + congestive_heart_failure + renal_failure + is_male + age.cat + sofa.cat + bmi + vent, test="Chisq")
+
+fit2.glm <- update(bb.base.glm, .~. + sofa.cat)
+add1(fit2.glm,scope = ~ . + take_ace + take_diuretics + take_arb + take_ccb + hypertension + diabetes_sb + congestive_heart_failure + renal_failure + is_male + age.cat + sofa.cat + bmi + vent, test="Chisq")
+
+fit3.glm <- update(fit2.glm, .~. + age.cat)
+add1(fit3.glm,scope = ~ . +  take_bb + take_ace + take_diuretics + take_arb + take_ccb + hypertension + diabetes_sb + congestive_heart_failure + renal_failure + is_male + age.cat + sofa.cat + bmi + vent, test="Chisq")
+
+fit4.glm <- update(fit3.glm, .~. + take_ace)
+add1(fit4.glm,scope = ~ . +  take_bb + take_ace + take_diuretics + take_arb + take_ccb + hypertension + diabetes_sb + congestive_heart_failure + renal_failure + is_male + age.cat + sofa.cat + bmi + vent, test="Chisq")
+
+fit5.glm <- update(fit4.glm, .~. + hypertension)
+add1(fit5.glm,scope = ~ . +  take_bb + take_ace + take_diuretics + take_arb + take_ccb + hypertension + diabetes_sb + congestive_heart_failure + renal_failure + is_male + age.cat + sofa.cat + bmi + vent, test="Chisq")
+
+fit6.glm <- update(fit5.glm, .~. + bmi)
+add1(fit6.glm,scope = ~ . +  take_bb + take_ace + take_diuretics + take_arb + take_ccb + hypertension + diabetes_sb + congestive_heart_failure + renal_failure + is_male + age.cat + sofa.cat + bmi + vent, test="Chisq")
+
+fit7.glm <- update(fit6.glm, .~. + diabetes_sb)
+add1(fit7.glm,scope = ~ . +  take_bb + take_ace + take_diuretics + take_arb + take_ccb + hypertension + diabetes_sb + congestive_heart_failure + renal_failure + is_male + age.cat + sofa.cat + bmi + vent, test="Chisq")
+
+fit8.glm <- update(fit7.glm, .~. + take_arb)
+add1(fit8.glm,scope = ~ . +  take_bb + take_ace + take_diuretics + take_arb + take_ccb + hypertension + diabetes_sb + congestive_heart_failure + renal_failure + is_male + age.cat + sofa.cat + bmi + vent, test="Chisq")
+
+fit9.glm <- update(fit8.glm, .~. + vent)
+add1(fit9.glm,scope = ~ . +  take_bb + take_ace + take_diuretics + take_arb + take_ccb + hypertension + diabetes_sb + congestive_heart_failure + renal_failure + is_male + age.cat + sofa.cat + bmi + vent, test="Chisq")
+
+
+summary(fit9.glm)
+sjp.glm(fit9.glm)
+
+
+
+##take_ace
+### Drugs: ace is sig, arb is the second sig
+### comorb: hyp is sig; add in diabetes by judgement b/c bmi 
+### All sofa is sig - the higher the sofa the more sig
+### Older age (>55) is sig, as shown in tableone
+### vent is somewhat sig
+
+ace.base.glm <- glm(thirtyday_expire_flag ~ take_ace,data=dat_s,family="binomial")
+add1(ace.base.glm,scope = ~ . +  take_bb + take_ace + take_diuretics + take_arb + take_ccb + hypertension + diabetes_sb + congestive_heart_failure + renal_failure + is_male + age.cat + sofa.cat + bmi + vent, test="Chisq")
+
+fit21.glm <- update(ace.base.glm, .~. + sofa.cat)
+add1(fit21.glm,scope = ~ . +  take_bb + take_ace + take_diuretics + take_arb + take_ccb + hypertension + diabetes_sb + congestive_heart_failure + renal_failure + is_male + age.cat + sofa.cat + bmi + vent, test="Chisq")
+
+fit22.glm <- update(fit21.glm, .~. + age.cat)
+add1(fit22.glm,scope = ~ . +  take_bb + take_ace + take_diuretics + take_arb + take_ccb + hypertension + diabetes_sb + congestive_heart_failure + renal_failure + is_male + age.cat + sofa.cat + bmi + vent, test="Chisq")
+
+fit23.glm <- update(fit22.glm, .~. + hypertension)
+add1(fit23.glm,scope = ~ . +  take_bb + take_ace + take_diuretics + take_arb + take_ccb + hypertension + diabetes_sb + congestive_heart_failure + renal_failure + is_male + age.cat + sofa.cat + bmi + vent, test="Chisq")
+
+fit24.glm <- update(fit23.glm, .~. + bmi)
+add1(fit24.glm,scope = ~ . +  take_bb + take_ace + take_diuretics + take_arb + take_ccb + hypertension + diabetes_sb + congestive_heart_failure + renal_failure + is_male + age.cat + sofa.cat + bmi + vent, test="Chisq")
+
+fit25.glm <- update(fit24.glm, .~. + diabetes_sb)
+add1(fit25.glm,scope = ~ . +  take_bb + take_ace + take_diuretics + take_arb + take_ccb + hypertension + diabetes_sb + congestive_heart_failure + renal_failure + is_male + age.cat + sofa.cat + bmi + vent, test="Chisq")
+
+fit26.glm <- update(fit25.glm, .~. + take_arb)
+add1(fit26.glm,scope = ~ . +  take_bb + take_ace + take_diuretics + take_arb + take_ccb + hypertension + diabetes_sb + congestive_heart_failure + renal_failure + is_male + age.cat + sofa.cat + bmi + vent, test="Chisq")
+
+fit27.glm <- update(fit26.glm, .~. + vent)
+add1(fit27.glm,scope = ~ . +  take_bb + take_ace + take_diuretics + take_arb + take_ccb + hypertension + diabetes_sb + congestive_heart_failure + renal_failure + is_male + age.cat + sofa.cat + bmi + vent, test="Chisq")
+
+
+summary(fit27.glm)
+sjp.glm(fit27.glm)
+
+
+
+## take_arb
+### very similar regression result to take_ace
+### drugs: arb is not as sig as ace
+### comorb: same as ace
+### age: same as ace
+### sofa: same as ace
+### vent: somewhat sig 
+
+arb.base.glm <- glm(thirtyday_expire_flag ~ take_arb,data=dat_s,family="binomial")
+add1(arb.base.glm,scope = ~ . +  take_bb + take_ace + take_diuretics + take_arb + take_ccb + hypertension + diabetes_sb + congestive_heart_failure + renal_failure + is_male + age.cat + sofa.cat + bmi + vent, test="Chisq")
+
+fit31.glm <- update(arb.base.glm, .~. + sofa.cat)
+add1(fit31.glm,scope = ~ . +  take_bb + take_ace + take_diuretics + take_arb + take_ccb + hypertension + diabetes_sb + congestive_heart_failure + renal_failure + is_male + age.cat + sofa.cat + bmi + vent, test="Chisq")
+
+fit32.glm <- update(fit31.glm, .~. + age.cat)
+add1(fit32.glm,scope = ~ . +  take_bb + take_ace + take_diuretics + take_arb + take_ccb + hypertension + diabetes_sb + congestive_heart_failure + renal_failure + is_male + age.cat + sofa.cat + bmi + vent, test="Chisq")
+
+fit33.glm <- update(fit32.glm, .~. + take_ace)
+add1(fit33.glm,scope = ~ . +  take_bb + take_ace + take_diuretics + take_arb + take_ccb + hypertension + diabetes_sb + congestive_heart_failure + renal_failure + is_male + age.cat + sofa.cat + bmi + vent, test="Chisq")
+
+fit34.glm <- update(fit33.glm, .~. + bmi)
+add1(fit34.glm,scope = ~ . +  take_bb + take_ace + take_diuretics + take_arb + take_ccb + hypertension + diabetes_sb + congestive_heart_failure + renal_failure + is_male + age.cat + sofa.cat + bmi + vent, test="Chisq")
+
+fit35.glm <- update(fit34.glm, .~. + diabetes_sb)
+add1(fit35.glm,scope = ~ . +  take_bb + take_ace + take_diuretics + take_arb + take_ccb + hypertension + diabetes_sb + congestive_heart_failure + renal_failure + is_male + age.cat + sofa.cat + bmi + vent, test="Chisq")
+
+fit36.glm <- update(fit35.glm, .~. + hypertension)
+add1(fit36.glm,scope = ~ . +  take_bb + take_ace + take_diuretics + take_arb + take_ccb + hypertension + diabetes_sb + congestive_heart_failure + renal_failure + is_male + age.cat + sofa.cat + bmi + vent, test="Chisq")
+
+fit37.glm <- update(fit36.glm, .~. + vent)
+add1(fit37.glm,scope = ~ . +  take_bb + take_ace + take_diuretics + take_arb + take_ccb + hypertension + diabetes_sb + congestive_heart_failure + renal_failure + is_male + age.cat + sofa.cat + bmi + vent, test="Chisq")
+
+
+summary(fit37.glm)
+sjp.glm(fit37.glm)
+
+
+## Interaction 
+### From the above regression, we have a question of why diabetest is not sig. Here we access the correlation between bmi and diabeltes by adding an interaction term bmi*diabetes
+
+
+test.glm <- glm(thirtyday_expire_flag ~ bmi + diabetes_sb,data=dat_s,family="binomial")
+summary(test.glm)
+
+test2.glm <- glm(thirtyday_expire_flag ~ bmi*diabetes_sb,data=dat_s,family="binomial")
+summary(test2.glm)
+
+
+##use the one way anova to see if adding the interaction term would be sigificantly different from the non-interaction term.. 
+
+anova(test.glm, test2.glm, test = "Chisq")
+
+
+## now with the full model 
+
+inter.model.glm <- glm(thirtyday_expire_flag ~ take_bb + take_ace + take_diuretics + take_arb + take_ccb + hypertension + congestive_heart_failure + renal_failure + is_male + age.cat + sofa.cat + vent + bmi*diabetes_sb, data=dat_s, family="binomial")
+summary(inter.model.glm)
+
+
+## Chisq is very big, do not reject null. Hence the model with the interaction and without are not statistically different. But why.. 
+
+anova(inter.model.glm, full.model.glm, test="Chisq")
+
+
